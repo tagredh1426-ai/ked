@@ -102,6 +102,7 @@
             animation: fadeIn 0.4s ease-out forwards;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-purple-600 selection:text-white">
 
@@ -369,6 +370,13 @@
     <!-- JAVASCRIPT APPLICATION LOGIC -->
     <script>
         // Initial Quotes Data Store
+        const SUPABASE_URL = "https://oosskmaozubrkkckebxt.supabase.co";
+const SUPABASE_KEY = "[https://oosskmaozubrkkckebxt.supabase.co/rest/v1/](https://oosskmaozubrkkckebxt.supabase.co/rest/v1/)";
+
+const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
         let quotesData = [
             {
                 id: 1,
@@ -430,11 +438,37 @@
         let isLoggedIn = true;
 
         // Initialize App
-        window.addEventListener('DOMContentLoaded', () => {
-            renderQuotes();
-            updateAuthUI();
-        });
+window.addEventListener('DOMContentLoaded', async () => {
+    await loadQuotes();
+    updateAuthUI();
+});
 
+// Load quotes from Supabase
+async function loadQuotes() {
+    const { data, error } = await supabaseClient
+        .from('quotes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Load error:', error);
+        showToast('تعذر تحميل الاقتباسات');
+        return;
+    }
+
+    const savedQuotes = data.map(q => ({
+        id: q.id,
+        text: q.content,
+        author: q.author,
+        category: q.category || 'literature',
+        likes: 0,
+        liked: false,
+        date: 'اقتباس مشارك'
+    }));
+
+    quotesData = [...quotesData, ...savedQuotes];
+    renderQuotes();
+}
         // Render Quotes to Grid
         function renderQuotes() {
             const grid = document.getElementById('quotes-grid');
@@ -514,30 +548,48 @@
         }
 
         // Handle Add Quote Form Submit
-        function handleQuoteSubmit(e) {
-            e.preventDefault();
-            const text = document.getElementById('quoteText').value.trim();
-            const author = document.getElementById('quoteAuthor').value.trim() || 'المعنى في فضاء رقمي';
-            const category = document.getElementById('quoteCategory').value;
+        async function handleQuoteSubmit(e) {
+    e.preventDefault();
 
-            if (!text) return;
+    const text = document.getElementById('quoteText').value.trim();
+    const author = document.getElementById('quoteAuthor').value.trim()
+        || 'المعنى في فضاء رقمي';
+    const category = document.getElementById('quoteCategory').value;
 
-            const newQuote = {
-                id: Date.now(),
-                text: text,
-                author: author,
-                category: category,
-                likes: 1,
-                liked: true,
-                date: "الآن"
-            };
+    if (!text) return;
 
-            quotesData.unshift(newQuote);
-            renderQuotes();
-            closeModal('addQuoteModal');
-            document.getElementById('addQuoteForm').reset();
-            showToast('تم إضافة الاقتباس بنجاح إلى منصة كترا! ✨');
-        }
+    const { data, error } = await supabaseClient
+        .from('quotes')
+        .insert([{
+            content: text,
+            author: author,
+            category: category
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Save error:', error);
+        showToast('فشل نشر الاقتباس، حاولي مرة أخرى');
+        return;
+    }
+
+    quotesData.unshift({
+        id: data.id,
+        text: data.content,
+        author: data.author,
+        category: data.category,
+        likes: 0,
+        liked: false,
+        date: 'الآن'
+    });
+
+    renderQuotes();
+    closeModal('addQuoteModal');
+    document.getElementById('addQuoteForm').reset();
+
+    showToast('تم حفظ الاقتباس ونشره للجميع! ✨');
+}
 
         // Category Filter Function
         function filterCategory(cat, btnElement) {
